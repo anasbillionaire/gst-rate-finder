@@ -31,12 +31,24 @@ npm run build
 
 ## API Examples
 
+If `API_KEYS` is configured, every `/api/*` request must include `x-api-key` or `Authorization: Bearer <key>`.
+
 ```bash
 curl http://localhost:3000/health
-curl "http://localhost:3000/api/search?q=6204"
-curl http://localhost:3000/api/rate/6204
-curl -X POST http://localhost:3000/api/rate -H "Content-Type: application/json" -d "{\"query\":\"6204\",\"price\":1200}"
+curl "http://localhost:3000/api/search?q=6204" -H "x-api-key: $GST_API_KEY"
+curl http://localhost:3000/api/rate/6204 -H "x-api-key: $GST_API_KEY"
+curl -X POST http://localhost:3000/api/rate -H "Content-Type: application/json" -H "x-api-key: $GST_API_KEY" -d "{\"query\":\"6204\",\"price\":1200}"
 ```
+
+## API Key Protection
+
+Set one or more comma-separated keys:
+
+```bash
+API_KEYS="key_one,key_two"
+```
+
+`/health`, `/docs`, and `/openapi.yaml` stay public. `/api/*` requires a valid key when `API_KEYS` is set.
 
 Example response for `6204` includes Chapter 62 apparel slabs:
 
