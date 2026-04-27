@@ -41,9 +41,45 @@ function parseSerialNo(text: string): string | undefined {
 }
 
 function fallbackApparelRows(existing: GstRateRow[]): GstRateRow[] {
+  const hasKnittedBelow = existing.some((row) => row.heading === "61" && row.slab === "below_1000" && row.rate === 5);
+  const hasKnittedAbove = existing.some((row) => row.heading === "61" && row.slab === "above_1000" && row.rate === 12);
   const hasBelow = existing.some((row) => row.heading === "62" && row.slab === "below_1000" && row.rate === 5);
   const hasAbove = existing.some((row) => row.heading === "62" && row.slab === "above_1000" && row.rate === 12);
   const fallback: GstRateRow[] = [];
+  if (!hasKnittedBelow) {
+    fallback.push({
+      id: "gstgoodsrates-pdf-apparel-61-below-1000",
+      schedule: "I",
+      serialNo: "222",
+      heading: "61",
+      description: "Articles of apparel and clothing accessories, knitted or crocheted",
+      cgst: 2.5,
+      sgstUtgst: 2.5,
+      igst: 5,
+      rate: 5,
+      condition: "sale value not exceeding Rs. 1000 per piece",
+      slab: "below_1000",
+      sourceFile: "gstgoodsrates.pdf",
+      rawText: "Normalized fallback from supplied GST goods rates PDF rows around Schedule I serial 222 and Chapter 61."
+    });
+  }
+  if (!hasKnittedAbove) {
+    fallback.push({
+      id: "gstgoodsrates-pdf-apparel-61-above-1000",
+      schedule: "II",
+      serialNo: "169",
+      heading: "61",
+      description: "Articles of apparel and clothing accessories, knitted or crocheted",
+      cgst: 6,
+      sgstUtgst: 6,
+      igst: 12,
+      rate: 12,
+      condition: "sale value exceeding Rs. 1000 per piece",
+      slab: "above_1000",
+      sourceFile: "gstgoodsrates.pdf",
+      rawText: "Normalized fallback from supplied GST goods rates PDF rows around Schedule II serial 169 and Chapter 61."
+    });
+  }
   if (!hasBelow) {
     fallback.push({
       id: "gstgoodsrates-pdf-apparel-62-below-1000",
