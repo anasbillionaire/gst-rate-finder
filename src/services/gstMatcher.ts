@@ -148,11 +148,33 @@ export class GstMatcher {
   search(query: string) {
     const normalized = normalizeQuery(query);
     const code = digitsOnly(query);
+    const hsnMatches = code
+      ? this.hsnRecords
+          .filter((record) => record.code === code || record.code.startsWith(code))
+          .sort((a, b) => a.code.length - b.code.length || a.code.localeCompare(b.code))
+          .slice(0, 40)
+      : [];
+    const gstMatches = code
+      ? this.gstRows
+          .filter((row) => row.heading && (code.startsWith(row.heading) || row.heading.startsWith(code)))
+          .slice(0, 20)
+      : [];
+    const rate_matches = hsnMatches.map((record) => {
+      const response = this.rate(record.code);
+      return {
+        code: record.code,
+        description: record.description,
+        matched: response.matched,
+        match_type: response.match_type,
+        gst: response.matched ? response.gst : undefined
+      };
+    });
     return {
       query,
       normalized_query: normalized,
-      hsn_matches: code ? this.hsnRecords.filter((record) => record.code === code) : [],
-      gst_matches: code ? this.gstRows.filter((row) => row.heading && (code.startsWith(row.heading) || row.heading.startsWith(code))).slice(0, 10) : [],
+      hsn_matches: hsnMatches,
+      gst_matches: gstMatches,
+      rate_matches,
       fuzzy_matches: this.fuzzy.search(normalized, 10).map((result) => ({
         score: result.score,
         code: result.item.code,

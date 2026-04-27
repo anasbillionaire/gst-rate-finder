@@ -19,6 +19,18 @@ describe("API", () => {
     expect(res.body.gst.selected_rate.rate).toBe(12);
   });
 
+  it("GET /api/search returns exact and child HSN rate options", async () => {
+    const res = await request(app).get("/api/search?q=9401").expect(200);
+    const codes = res.body.rate_matches.map((match: { code: string }) => match.code);
+    expect(codes).toContain("9401");
+    expect(codes).toContain("940110");
+    expect(codes).toContain("94011000");
+    const general = res.body.rate_matches.find((match: { code: string }) => match.code === "9401");
+    const aircraft = res.body.rate_matches.find((match: { code: string }) => match.code === "940110");
+    expect(general.gst.below_1000.rate).toBe(18);
+    expect(aircraft.gst.below_1000.rate).toBe(5);
+  });
+
   it("requires an API key when API_KEYS is configured", async () => {
     process.env.API_KEYS = "test_key";
     const protectedApp = createApp();
