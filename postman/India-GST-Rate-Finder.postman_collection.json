@@ -1,0 +1,38 @@
+{
+  "info": {
+    "name": "India GST Rate Finder API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:3000/health"
+      }
+    },
+    {
+      "name": "Search 6204",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:3000/api/search?q=6204"
+      }
+    },
+    {
+      "name": "Rate 6204",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:3000/api/rate/6204"
+      }
+    },
+    {
+      "name": "Rate 6204 With Price",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"query\":\"6204\",\"price\":1200}" },
+        "url": "http://localhost:3000/api/rate"
+      }
+    }
+  ]
+}

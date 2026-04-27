@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: India GST Rate Finder API
+  version: 1.0.0
+  description: API for finding GST rates from user-supplied official HSN/SAC and GST goods rate files.
+servers:
+  - url: http://localhost:3000
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: API is running
+  /api/search:
+    get:
+      summary: Search HSN and GST matches
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+  /api/rate/{query}:
+    get:
+      summary: Resolve GST rate by HSN code or product text
+      parameters:
+        - in: path
+          name: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matched GST rate or not_found
+  /api/rate:
+    post:
+      summary: Resolve GST rate with optional price slab selection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                price:
+                  type: number
+      responses:
+        "200":
+          description: Matched GST rate or not_found

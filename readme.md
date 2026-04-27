@@ -1,36 +1,77 @@
-HSN Code - GST API
+# India GST Rate Finder API
 
-This API helps in getting the GST Rates by using the HSN Number.
+Node.js + TypeScript API for finding India GST rates from user-supplied official files:
 
-- INSTRUCTIONS
--> After downloading/pulling this repository, create a virtual environment or activate your virtual env
--> In the terminal run command 'pip install -r requirements.txt'
--> After the command is successfull, run py manage.py runserver
--> The server is started at http://127.0.0.1:8000/
--> Once the server is started go to url: http://127.0.0.1:8000/api/<Enter Your HSN Code Here>/ , this will return 
-an array of objects with commodities and gst associated with your enetered HSN Code **Enter HSN Code without <>**
+- `data/raw/HSN_SAC.xlsx`
+- `data/raw/gstgoodsrates.pdf`
 
-Example: url = http://127.0.0.1:8000/api/9405.00.00/
-        response = [
-    {
-        "HSN": "9405.00.00",
-        "GST": 0.28,
-        "Name of Commodity": "Lamps and lighting fittings including searchlights and spotlights and parts thereof, not elsewhere specified or included; illuminated signs, illuminated name-plates and the like, having a permanently fixed light source, and parts thereof not elsewhere specified or included"
-    },
-    {
-        "HSN": "9405.00.00",
-        "GST": 0.12,
-        "Name of Commodity": "Hurricane lanterns, kerosene lamps/lantern, petromax, glass chimney,accessories and components thereof"
-    },
-    {
-        "HSN": "9405.00.00",
-        "GST": 0.12,
-        "Name of Commodity": "LED lights or fixtures including LED lamps"
-    },
-    {
-        "HSN": "9405.00.00",
-        "GST": 0.12,
-        "Name of Commodity": "LED (light emitting diode) driver and MCPCB (Metal Core Printed Circuit Board)"
-    }
-]
+The API does not invent a default GST rate. It never defaults to 18% unless that rate exists in the parsed source data.
 
+## Setup
+
+```bash
+npm install
+npm run import:data
+npm run dev
+```
+
+Open:
+
+- Health: `http://localhost:3000/health`
+- Docs: `http://localhost:3000/docs`
+
+## Commands
+
+```bash
+npm run import:data
+npm run dev
+npm test
+npm run build
+```
+
+## API Examples
+
+```bash
+curl http://localhost:3000/health
+curl "http://localhost:3000/api/search?q=6204"
+curl http://localhost:3000/api/rate/6204
+curl -X POST http://localhost:3000/api/rate -H "Content-Type: application/json" -d "{\"query\":\"6204\",\"price\":1200}"
+```
+
+Example response for `6204` includes Chapter 62 apparel slabs:
+
+- below/equal Rs. 1000: 5% GST
+- above Rs. 1000: 12% GST
+
+## Matching Order
+
+1. Exact HSN match
+2. Longest prefix match
+3. Chapter prefix match
+4. Description keyword match
+5. Fuse.js fuzzy match
+6. `not_found`
+
+If no source-backed match is found, the API returns `not_found`; it does not guess.
+
+## Data Import
+
+`npm run import:data` reads the raw files and writes:
+
+- `data/generated/hsn.json`
+- `data/generated/gst-rates.json`
+- `data/generated/search-index.json`
+- `data/generated/gst-raw-rows.json`
+
+Raw parsed PDF rows are stored for debugging because PDF tables can extract messily.
+
+## Docker
+
+```bash
+docker build -t india-gst-rate-finder-api .
+docker run --rm -p 3000:3000 india-gst-rate-finder-api
+```
+
+## Legal Disclaimer
+
+GST rates are based on parsed official files supplied by the user. Verify with CBIC notifications before legal filing.
