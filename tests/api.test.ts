@@ -25,10 +25,15 @@ describe("API", () => {
     expect(codes).toContain("9401");
     expect(codes).toContain("940110");
     expect(codes).toContain("94011000");
+    expect(codes.indexOf("94011000")).toBe(codes.indexOf("940110") + 1);
     const general = res.body.rate_matches.find((match: { code: string }) => match.code === "9401");
     const aircraft = res.body.rate_matches.find((match: { code: string }) => match.code === "940110");
     expect(general.gst.below_1000.rate).toBe(18);
     expect(aircraft.gst.below_1000.rate).toBe(5);
+    const fuzzyCodes = res.body.fuzzy_matches.map((match: { code?: string; hsn?: { code?: string } }) => match.code || match.hsn?.code);
+    expect(fuzzyCodes).toContain("9401");
+    expect(fuzzyCodes).toContain("94011000");
+    expect(fuzzyCodes).toContain("94012000");
   });
 
   it("requires an API key when API_KEYS is configured", async () => {

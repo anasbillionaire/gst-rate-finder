@@ -132,6 +132,14 @@ function sourceList(rows: GstRateRow[], hsn?: HsnRecord): Array<Record<string, s
   return [...uniqueBy(gstSources, (source) => `${source.file}-${source.schedule}-${source.serial_no}`), ...(hsn ? [{ file: "HSN_SAC.xlsx" }] : [])];
 }
 
+function sortHsnSuggestions(queryCode: string) {
+  return (a: HsnRecord, b: HsnRecord) => {
+    if (a.code === queryCode) return -1;
+    if (b.code === queryCode) return 1;
+    return a.code.localeCompare(b.code);
+  };
+}
+
 export class GstMatcher {
   private hsnRecords: HsnRecord[];
   private gstRows: GstRateRow[];
@@ -151,8 +159,8 @@ export class GstMatcher {
     const hsnMatches = code
       ? this.hsnRecords
           .filter((record) => record.code === code || record.code.startsWith(code))
-          .sort((a, b) => a.code.length - b.code.length || a.code.localeCompare(b.code))
-          .slice(0, 40)
+          .sort(sortHsnSuggestions(code))
+          .slice(0, 100)
       : [];
     const gstMatches = code
       ? this.gstRows
@@ -169,19 +177,30 @@ export class GstMatcher {
         gst: response.matched ? response.gst : undefined
       };
     });
+    const fuzzyPrefixMatches = rate_matches.map((match) => ({
+      score: match.code === code ? 0 : 0.01,
+      code: match.code,
+      description: match.description,
+      match_type: match.match_type,
+      hsn: { code: match.code, description: match.description },
+      gst: match.gst,
+      source: match.code === code ? "exact_hsn" : "hsn_prefix"
+    }));
+    const fuseMatches = this.fuzzy.search(normalized, 20).map((result) => ({
+      score: result.score,
+      code: result.item.code,
+      description: result.item.description,
+      hsn: result.item.hsn,
+      gst: result.item.gst,
+      source: "fuzzy"
+    }));
     return {
       query,
       normalized_query: normalized,
       hsn_matches: hsnMatches,
       gst_matches: gstMatches,
       rate_matches,
-      fuzzy_matches: this.fuzzy.search(normalized, 10).map((result) => ({
-        score: result.score,
-        code: result.item.code,
-        description: result.item.description,
-        hsn: result.item.hsn,
-        gst: result.item.gst
-      }))
+      fuzzy_matches: uniqueBy([...fuzzyPrefixMatches, ...fuseMatches], (match) => match.code || match.hsn?.code || match.description).slice(0, 100)
     };
   }
 
