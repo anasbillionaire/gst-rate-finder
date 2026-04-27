@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
+import { requireApiKey } from "./api/auth.js";
 import { createApiRouter } from "./api/routes.js";
 import { rootDir } from "./utils/paths.js";
 
@@ -18,7 +19,7 @@ export function createApp() {
     app.use("/docs", swaggerUi.serve, swaggerUi.setup(undefined, { swaggerUrl: "/openapi.yaml" }));
     app.get("/openapi.yaml", (_req, res) => res.sendFile(openApiPath));
   }
-  app.use("/api", createApiRouter());
+  app.use("/api", requireApiKey, createApiRouter());
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
   return app;
 }

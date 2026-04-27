@@ -18,4 +18,20 @@ describe("API", () => {
     const res = await request(app).post("/api/rate").send({ query: "6204", price: 1200 }).expect(200);
     expect(res.body.gst.selected_rate.rate).toBe(12);
   });
+
+  it("requires an API key when API_KEYS is configured", async () => {
+    process.env.API_KEYS = "test_key";
+    const protectedApp = createApp();
+    await request(protectedApp).get("/health").expect(200);
+    await request(protectedApp).get("/api/rate/6204").expect(401);
+    delete process.env.API_KEYS;
+  });
+
+  it("accepts x-api-key and bearer tokens", async () => {
+    process.env.API_KEYS = "test_key";
+    const protectedApp = createApp();
+    await request(protectedApp).get("/api/rate/6204").set("x-api-key", "test_key").expect(200);
+    await request(protectedApp).get("/api/rate/6204").set("authorization", "Bearer test_key").expect(200);
+    delete process.env.API_KEYS;
+  });
 });

@@ -5,6 +5,12 @@ info:
   description: API for finding GST rates from user-supplied official HSN/SAC and GST goods rate files.
 servers:
   - url: http://localhost:3000
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
 paths:
   /health:
     get:
@@ -15,6 +21,8 @@ paths:
   /api/search:
     get:
       summary: Search HSN and GST matches
+      security:
+        - ApiKeyAuth: []
       parameters:
         - in: query
           name: q
@@ -27,6 +35,8 @@ paths:
   /api/rate/{query}:
     get:
       summary: Resolve GST rate by HSN code or product text
+      security:
+        - ApiKeyAuth: []
       parameters:
         - in: path
           name: query
@@ -39,6 +49,8 @@ paths:
   /api/rate:
     post:
       summary: Resolve GST rate with optional price slab selection
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
