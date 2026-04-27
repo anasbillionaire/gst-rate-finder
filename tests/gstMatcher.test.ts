@@ -12,6 +12,8 @@ describe("GstMatcher", () => {
     expect(response.gst.below_1000.rate).toBe(5);
     expect(response.gst.above_1000.rate).toBe(12);
     expect(response.gst.selected_rate?.rate).toBe(12);
+    expect(response.gst.candidates?.length).toBeGreaterThanOrEqual(2);
+    expect(response.gst.needs_selection).toBe(false);
   });
 
   it("returns the same chapter-level result for HSN 62", () => {
@@ -20,6 +22,7 @@ describe("GstMatcher", () => {
     if (!response.matched) throw new Error("expected match");
     expect(response.gst.below_1000.rate).toBe(5);
     expect(response.gst.above_1000.rate).toBe(12);
+    expect(response.gst.needs_selection).toBe(true);
   });
 
   it("fuzzy search women dress returns apparel related result", () => {
@@ -57,5 +60,40 @@ describe("GstMatcher", () => {
     const response = matcher.rate("no-such-product-code");
     expect(response.matched).toBe(false);
     expect(JSON.stringify(response)).not.toContain("\"rate\":18");
+  });
+
+  it("selects the highest matching exceeding threshold dynamically", () => {
+    const rows = [
+      {
+        id: "below",
+        heading: "6204",
+        description: "sale value not exceeding Rs. 1000 per piece",
+        rate: 5,
+        condition: "sale value not exceeding Rs. 1000 per piece",
+        sourceFile: "gstgoodsrates.pdf" as const
+      },
+      {
+        id: "above-1000",
+        heading: "6204",
+        description: "sale value exceeding Rs. 1000 per piece",
+        rate: 12,
+        condition: "sale value exceeding Rs. 1000 per piece",
+        sourceFile: "gstgoodsrates.pdf" as const
+      },
+      {
+        id: "above-2500",
+        heading: "6204",
+        description: "sale value exceeding Rs. 2500 per piece",
+        rate: 18,
+        condition: "sale value exceeding Rs. 2500 per piece",
+        sourceFile: "gstgoodsrates.pdf" as const
+      }
+    ];
+    const testMatcher = new GstMatcher({ gstRows: rows });
+    const response = testMatcher.rate("6204", 3000);
+    expect(response.matched).toBe(true);
+    if (!response.matched) throw new Error("expected match");
+    expect(response.gst.selected_rate?.rate).toBe(18);
+    expect(response.gst.candidates?.map((candidate) => candidate.rate)).toEqual([5, 12, 18]);
   });
 });

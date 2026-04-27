@@ -11,7 +11,12 @@ export function createApiRouter(matcher = new GstMatcher()): Router {
   });
   router.get("/rate/:query", (req, res) => res.json(matcher.rate(req.params.query)));
   router.post("/rate", (req, res) => {
-    const parsed = z.object({ query: z.string().min(1), price: z.number().optional() }).safeParse(req.body);
+    const parsed = z.object({
+      query: z.string().min(1),
+      price: z.number().optional(),
+      effective_date: z.string().optional(),
+      description: z.string().optional()
+    }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
     return res.json(matcher.rate(parsed.data.query, parsed.data.price));
   });

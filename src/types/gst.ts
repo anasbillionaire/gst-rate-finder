@@ -46,6 +46,19 @@ export interface RateBucket {
   compensation_cess?: string;
 }
 
+export interface RateCondition {
+  kind: "lte" | "lt" | "gte" | "gt" | "none" | "unknown";
+  value?: number;
+  unit?: "piece" | "unknown";
+  text?: string;
+}
+
+export interface RateCandidate extends RateBucket {
+  condition_parsed: RateCondition;
+  effective_date?: string;
+  source_file: "gstgoodsrates.pdf";
+}
+
 export interface MatchedRateResponse {
   query: string;
   normalized_query: string;
@@ -56,7 +69,10 @@ export interface MatchedRateResponse {
   gst: {
     below_1000: RateBucket;
     above_1000: RateBucket;
-    selected_rate?: { rate: number; reason: string };
+    slabs?: RateCandidate[];
+    candidates?: RateCandidate[];
+    needs_selection?: boolean;
+    selected_rate?: { rate: number; reason: string; candidate?: RateCandidate };
   };
   sources: Array<Record<string, string | undefined>>;
   disclaimer: string;

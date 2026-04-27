@@ -1,7 +1,7 @@
 import type { FuseResult } from "fuse.js";
 import { loadGstRows, loadHsnRecords, loadSearchRecords } from "./dataStore.js";
 import { FuzzySearchService } from "./fuzzySearch.js";
-import { GstRateRow, HsnRecord, MatchType, RateBucket, RateResponse, SearchRecord } from "../types/gst.js";
+import { GstRateRow, HsnRecord, MatchType, RateBucket, RateCandidate, RateCondition, RateResponse, SearchRecord } from "../types/gst.js";
 import { digitsOnly, normalizeQuery, uniqueBy } from "../utils/text.js";
 
 const DISCLAIMER = "GST rates are based on parsed official files supplied by the user. Verify with CBIC notifications before legal filing.";
@@ -21,6 +21,37 @@ function toBucket(row: GstRateRow): RateBucket {
   };
 }
 
+function parseMoney(text: string): number | undefined {
+  const normalized = text.replace(/,/g, "");
+  const match = normalized.match(/(?:rs\.?|inr|₹)?\s*(\d+(?:\.\d+)?)/i);
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function parseRateCondition(row: GstRateRow): RateCondition {
+  const text = `${row.condition || ""} ${row.description || ""} ${row.rawText || ""}`.toLowerCase();
+  const value = parseMoney(text);
+  const unit: RateCondition["unit"] = /piece|unit|item/.test(text) ? "piece" : "unknown";
+  if (/not\s+exceeding|does\s+not\s+exceed|not\s+more\s+than|up\s*to|upto|below\s+or\s+equal|at\s+or\s+below/.test(text)) {
+    return { kind: "lte", value, unit, text: row.condition };
+  }
+  if (/less\s+than|below/.test(text)) return { kind: "lt", value, unit, text: row.condition };
+  if (/exceeding|more\s+than|above|greater\s+than/.test(text)) return { kind: "gt", value, unit, text: row.condition };
+  if (/at\s+least|not\s+less\s+than/.test(text)) return { kind: "gte", value, unit, text: row.condition };
+  if (row.slab === "below_1000") return { kind: "lte", value: 1000, unit, text: row.condition };
+  if (row.slab === "above_1000") return { kind: "gt", value: 1000, unit, text: row.condition };
+  return row.condition ? { kind: "unknown", value, unit, text: row.condition } : { kind: "none", unit };
+}
+
+function toCandidate(row: GstRateRow): RateCandidate {
+  return {
+    ...toBucket(row),
+    condition_parsed: parseRateCondition(row),
+    source_file: row.sourceFile
+  };
+}
+
 function prefixCandidates(code: string): string[] {
   const candidates: string[] = [];
   for (let len = code.length; len >= 2; len--) candidates.push(code.slice(0, len));
@@ -33,6 +64,57 @@ function chooseRateRows(rows: GstRateRow[]): { below?: GstRateRow; above?: GstRa
   const above = valid.find((row) => row.slab === "above_1000");
   const single = valid.find((row) => row.slab === "none") ?? valid[0];
   return { below: below ?? single, above: above ?? single };
+}
+
+function conditionMatchesPrice(condition: RateCondition, price: number): boolean {
+  if (condition.value === undefined) return condition.kind === "none" || condition.kind === "unknown";
+  if (condition.kind === "lte") return price <= condition.value;
+  if (condition.kind === "lt") return price < condition.value;
+  if (condition.kind === "gte") return price >= condition.value;
+  if (condition.kind === "gt") return price > condition.value;
+  return false;
+}
+
+function thresholdSpecificity(condition: RateCondition): number {
+  if (condition.value === undefined) return 0;
+  if (condition.kind === "gt" || condition.kind === "gte") return 100000000 + condition.value;
+  if (condition.kind === "lt" || condition.kind === "lte") return 100000000 - condition.value;
+  return condition.value;
+}
+
+function chooseCandidateForPrice(rows: GstRateRow[], price?: number): { candidate?: GstRateRow; reason?: string; needsSelection: boolean } {
+  const valid = rows.filter((row) => row.rate !== undefined);
+  if (!valid.length) return { needsSelection: false };
+  if (price === undefined) return { needsSelection: valid.length > 1 };
+  const hasStructuredThresholds = valid.some((row) => {
+    const condition = parseRateCondition(row);
+    return condition.value !== undefined && condition.kind !== "none" && condition.kind !== "unknown";
+  });
+  const scopedRows = hasStructuredThresholds ? valid.filter((row) => parseRateCondition(row).kind !== "none") : valid;
+  const matching = scopedRows
+    .filter((row) => conditionMatchesPrice(parseRateCondition(row), price))
+    .sort((a, b) => thresholdSpecificity(parseRateCondition(b)) - thresholdSpecificity(parseRateCondition(a)));
+  const candidate = matching[0] ?? (valid.length === 1 ? valid[0] : undefined);
+  if (!candidate) return { needsSelection: true };
+  const selectedSignature = `${candidate.rate}-${candidate.condition}-${candidate.heading}`;
+  const competingSelections = uniqueBy(matching, (row) => `${row.rate}-${row.condition}-${row.heading}`)
+    .filter((row) => `${row.rate}-${row.condition}-${row.heading}` !== selectedSignature);
+  const condition = parseRateCondition(candidate);
+  const valueText = condition.value === undefined ? "" : ` Rs. ${condition.value}`;
+  const reason = condition.kind === "none"
+    ? "single GST rate row applies"
+    : `price ${price} matched ${condition.kind}${valueText} condition`;
+  return { candidate, reason, needsSelection: competingSelections.length > 0 };
+}
+
+function candidateRows(rows: GstRateRow[]): GstRateRow[] {
+  const valid = rows.filter((row) => row.rate !== undefined);
+  const hasStructuredThresholds = valid.some((row) => {
+    const condition = parseRateCondition(row);
+    return condition.value !== undefined && condition.kind !== "none" && condition.kind !== "unknown";
+  });
+  const scoped = hasStructuredThresholds ? valid.filter((row) => parseRateCondition(row).kind !== "none") : valid;
+  return uniqueBy(scoped, (row) => `${row.heading}-${row.rate}-${row.condition}-${row.schedule}-${row.serialNo}`);
 }
 
 function notFound(query: string): RateResponse {
@@ -51,10 +133,17 @@ function sourceList(rows: GstRateRow[], hsn?: HsnRecord): Array<Record<string, s
 }
 
 export class GstMatcher {
-  private hsnRecords = loadHsnRecords();
-  private gstRows = loadGstRows();
-  private searchRecords = loadSearchRecords();
-  private fuzzy = new FuzzySearchService(this.searchRecords);
+  private hsnRecords: HsnRecord[];
+  private gstRows: GstRateRow[];
+  private searchRecords: SearchRecord[];
+  private fuzzy: FuzzySearchService;
+
+  constructor(overrides: { hsnRecords?: HsnRecord[]; gstRows?: GstRateRow[]; searchRecords?: SearchRecord[] } = {}) {
+    this.hsnRecords = overrides.hsnRecords ?? loadHsnRecords();
+    this.gstRows = overrides.gstRows ?? loadGstRows();
+    this.searchRecords = overrides.searchRecords ?? loadSearchRecords();
+    this.fuzzy = new FuzzySearchService(this.searchRecords);
+  }
 
   search(query: string) {
     const normalized = normalizeQuery(query);
@@ -82,7 +171,11 @@ export class GstMatcher {
     if (!match) return notFound(query);
     const chosen = chooseRateRows(match.rows);
     if (!chosen.below || !chosen.above) return notFound(query);
-    const selectedRate = price === undefined ? undefined : price > 1000 ? { rate: chosen.above.rate ?? 0, reason: "price is above Rs. 1000" } : { rate: chosen.below.rate ?? 0, reason: "price is at or below Rs. 1000" };
+    const candidates = candidateRows(match.rows).map(toCandidate);
+    const selected = chooseCandidateForPrice(match.rows, price);
+    const selectedRate = selected.candidate
+      ? { rate: selected.candidate.rate ?? 0, reason: selected.reason ?? "matched GST candidate", candidate: toCandidate(selected.candidate) }
+      : undefined;
     return {
       query,
       normalized_query: code || normalized,
@@ -90,8 +183,15 @@ export class GstMatcher {
       match_type: match.type,
       confidence: match.confidence,
       hsn: hsn ? { code: hsn.code, description: hsn.description } : undefined,
-      gst: { below_1000: toBucket(chosen.below), above_1000: toBucket(chosen.above), selected_rate: selectedRate },
-      sources: sourceList([chosen.below, chosen.above], hsn),
+      gst: {
+        below_1000: toBucket(chosen.below),
+        above_1000: toBucket(chosen.above),
+        slabs: candidates,
+        candidates,
+        needs_selection: selected.needsSelection,
+        selected_rate: selectedRate
+      },
+      sources: sourceList(match.rows, hsn),
       disclaimer: DISCLAIMER
     };
   }
