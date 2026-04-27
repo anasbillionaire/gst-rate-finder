@@ -19,13 +19,17 @@ function detectCondition(text: string): string | undefined {
 }
 
 function parseRates(text: string): Pick<GstRateRow, "cgst" | "sgstUtgst" | "igst" | "rate"> {
+  RATE_RE.lastIndex = 0;
   const values = [...text.matchAll(RATE_RE)].map((match) => Number(match[1])).filter(Number.isFinite);
   if (values.length >= 3) return { cgst: values[0], sgstUtgst: values[1], igst: values[2], rate: values[2] };
+  if (values.length === 2) return { cgst: values[0], sgstUtgst: values[1], igst: values[0] + values[1], rate: values[0] + values[1] };
   if (values.length === 1) return { igst: values[0], rate: values[0] };
   return {};
 }
 
 function parseHeading(text: string): string | undefined {
+  const scheduleRowMatch = text.match(/^\s*[IVXLCDM]+\s+\d+[A-Z]?\s+(\d{2,8})\b/i);
+  if (scheduleRowMatch) return digitsOnly(scheduleRowMatch[1]);
   const chapterMatch = text.match(/\b(?:chapter|heading|sub-heading|tariff item)\s+(\d{2,8})\b/i);
   if (chapterMatch) return digitsOnly(chapterMatch[1]);
   const bracketMatch = text.match(/^\s*(\d{2,8})\s+[\-\u2013:]/);
@@ -35,9 +39,17 @@ function parseHeading(text: string): string | undefined {
 }
 
 function parseSerialNo(text: string): string | undefined {
+  const scheduleRowSerial = text.match(/^\s*[IVXLCDM]+\s+(\d+[A-Z]?)\s+\d{2,8}\b/i);
+  if (scheduleRowSerial) return scheduleRowSerial[1];
   const serial = text.match(/(?:S\.?\s*No\.?|serial\s+no\.?)\s*[:.-]?\s*([0-9A-Z]+)\b/i);
   if (serial) return serial[1];
   return text.match(/^\s*(\d+[A-Z]?)\s+[\).\-]\s+/i)?.[1];
+}
+
+function parseSchedule(text: string, currentSchedule?: string): string | undefined {
+  const namedSchedule = text.match(SCHEDULE_RE)?.[1]?.toUpperCase();
+  if (namedSchedule) return namedSchedule;
+  return text.match(/^\s*([IVXLCDM]+)\s+\d+[A-Z]?\s+\d{2,8}\b/i)?.[1]?.toUpperCase() ?? currentSchedule;
 }
 
 function fallbackApparelRows(existing: GstRateRow[]): GstRateRow[] {
@@ -127,8 +139,10 @@ export async function parseGstPdf(filePath: string): Promise<{ rows: GstRateRow[
   let currentSchedule: string | undefined;
 
   for (const line of lines) {
-    currentSchedule = line.match(SCHEDULE_RE)?.[1]?.toUpperCase() ?? currentSchedule;
-    if (!RATE_RE.test(line) && !/chapter|heading|tariff|schedule|sale value|apparel|clothing/i.test(line)) continue;
+    currentSchedule = parseSchedule(line, currentSchedule);
+    RATE_RE.lastIndex = 0;
+    const hasRate = RATE_RE.test(line);
+    if (!hasRate && !/chapter|heading|tariff|schedule|sale value|apparel|clothing/i.test(line)) continue;
     rawRows.push(line);
     const rates = parseRates(line);
     const heading = parseHeading(line);

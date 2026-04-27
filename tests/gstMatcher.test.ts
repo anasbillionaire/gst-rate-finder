@@ -35,6 +35,17 @@ describe("GstMatcher", () => {
     expect(response.match_type).toBe("not_found");
   });
 
+  it("does not confuse serial number 98 with Chapter 98 for HSN 9801", () => {
+    const response = matcher.rate("9801");
+    expect(response.matched).toBe(true);
+    if (!response.matched) throw new Error("expected match");
+    expect(response.match_type).toBe("exact_hsn");
+    expect(response.gst.below_1000.matched_heading).toBe("9801");
+    expect(response.gst.above_1000.matched_heading).toBe("9801");
+    expect(response.gst.below_1000.rate).toBe(18);
+    expect(response.gst.above_1000.rate).toBe(18);
+  });
+
   it("mirrors a single-rate GST row into both slabs", () => {
     const response = matcher.rate("402");
     expect(response.matched).toBe(true);
