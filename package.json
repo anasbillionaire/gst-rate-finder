@@ -11,7 +11,13 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
-  "keywords": ["gst", "hsn", "india", "api", "tax"],
+  "keywords": [
+    "gst",
+    "hsn",
+    "india",
+    "api",
+    "tax"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -30,6 +36,7 @@
     "@types/node": "^24.10.1",
     "@types/supertest": "^6.0.3",
     "@types/swagger-ui-express": "^4.1.8",
+    "@vercel/node": "^5.7.13",
     "supertest": "^7.1.4",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",

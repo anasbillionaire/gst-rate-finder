@@ -72,6 +72,12 @@ docker build -t india-gst-rate-finder-api .
 docker run --rm -p 3000:3000 india-gst-rate-finder-api
 ```
 
+## Free Live Deployment
+
+This project does not need Supabase for live API calls because the import step writes local JSON files.
+
+For a public URL, deploy the repo to a Node host. Vercel Hobby/free can run it through `api/index.ts` and `vercel.json`.
+
 ## Legal Disclaimer
 
 GST rates are based on parsed official files supplied by the user. Verify with CBIC notifications before legal filing.
