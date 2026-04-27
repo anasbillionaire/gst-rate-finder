@@ -218,6 +218,10 @@ export class GstMatcher {
     if (lookupCode) {
       const exact = this.gstRows.filter((row) => row.heading === lookupCode);
       if (exact.length) return { rows: exact, type: "exact_hsn", confidence: 1 };
+      if (lookupCode.length >= 6) {
+        const specificChildren = this.gstRows.filter((row) => row.heading?.startsWith(lookupCode));
+        if (specificChildren.length) return { rows: specificChildren, type: "exact_hsn", confidence: 1 };
+      }
       for (const prefix of prefixCandidates(lookupCode)) {
         const rows = this.gstRows.filter((row) => row.heading === prefix);
         if (rows.length) return { rows, type: prefix.length === 2 ? "chapter_prefix" : "prefix", confidence: prefix.length === 2 ? 0.98 : 0.99 };

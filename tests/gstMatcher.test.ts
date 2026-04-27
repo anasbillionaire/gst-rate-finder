@@ -49,6 +49,20 @@ describe("GstMatcher", () => {
     expect(response.gst.above_1000.rate).toBe(18);
   });
 
+  it("keeps aircraft-seat 5 percent row separate from general 9401 seats", () => {
+    const generalSeats = matcher.rate("9401");
+    expect(generalSeats.matched).toBe(true);
+    if (!generalSeats.matched) throw new Error("expected general seats match");
+    expect(generalSeats.gst.below_1000.rate).toBe(18);
+    expect(generalSeats.gst.below_1000.matched_heading).toBe("9401");
+
+    const aircraftSeats = matcher.rate("940110");
+    expect(aircraftSeats.matched).toBe(true);
+    if (!aircraftSeats.matched) throw new Error("expected aircraft seats match");
+    expect(aircraftSeats.gst.below_1000.rate).toBe(5);
+    expect(aircraftSeats.gst.below_1000.matched_heading).toBe("94011000");
+  });
+
   it("mirrors a single-rate GST row into both slabs", () => {
     const response = matcher.rate("402");
     expect(response.matched).toBe(true);

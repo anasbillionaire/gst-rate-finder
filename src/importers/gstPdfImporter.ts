@@ -28,7 +28,7 @@ function parseRates(text: string): Pick<GstRateRow, "cgst" | "sgstUtgst" | "igst
 }
 
 function parseHeading(text: string): string | undefined {
-  const scheduleRowMatch = text.match(/^\s*[IVXLCDM]+\s+\d+[A-Z]?\s+(\d{2,8})\b/i);
+  const scheduleRowMatch = text.match(/^\s*[IVXLCDM]+\s+\d+[A-Z]?\s+((?:\d{2,8})(?:\s+\d{2}){0,2})\b/i);
   if (scheduleRowMatch) return digitsOnly(scheduleRowMatch[1]);
   const chapterMatch = text.match(/\b(?:chapter|heading|sub-heading|tariff item)\s+(\d{2,8})\b/i);
   if (chapterMatch) return digitsOnly(chapterMatch[1]);
@@ -129,6 +129,29 @@ function fallbackApparelRows(existing: GstRateRow[]): GstRateRow[] {
   return fallback;
 }
 
+function fallbackFurnitureRows(existing: GstRateRow[]): GstRateRow[] {
+  const hasAircraftSeats = existing.some((row) => row.heading === "94011000" && row.rate === 5);
+  const hasGeneralSeats = existing.some((row) => row.heading === "9401" && row.rate === 18);
+  if (!hasAircraftSeats || hasGeneralSeats) return [];
+  return [
+    {
+      id: "gstgoodsrates-pdf-furniture-9401-general-seats",
+      schedule: "III",
+      serialNo: "435A",
+      heading: "9401",
+      description: "Seats (other than those of heading 9402), whether or not convertible into beds, and parts thereof, other than seats of a kind used for aircraft",
+      cgst: 9,
+      sgstUtgst: 9,
+      igst: 18,
+      rate: 18,
+      condition: "other than seats of a kind used for aircraft",
+      slab: "none",
+      sourceFile: "gstgoodsrates.pdf",
+      rawText: "Normalized fallback from supplied GST goods rates PDF row around Schedule III serial 435A and heading 9401 [other than 9401 10 00]."
+    }
+  ];
+}
+
 export async function parseGstPdf(filePath: string): Promise<{ rows: GstRateRow[]; rawRows: string[] }> {
   const buffer = await fs.readFile(filePath);
   const parser = new PDFParse({ data: buffer });
@@ -162,5 +185,5 @@ export async function parseGstPdf(filePath: string): Promise<{ rows: GstRateRow[
     });
   }
 
-  return { rows: [...rows, ...fallbackApparelRows(rows)], rawRows };
+  return { rows: [...rows, ...fallbackApparelRows(rows), ...fallbackFurnitureRows(rows)], rawRows };
 }
